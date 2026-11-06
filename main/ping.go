@@ -46,10 +46,13 @@ func initPingSerial() bool {
 	baudrate := int(2000000)
 
 	pingDeviceModel = 0
-	log.Printf("Configuring Ping ADS-B\n")
-
+        log.Printf("Configuring Ping ADS-B\n")
 	if _, err := os.Stat("/dev/ping"); err == nil {
 		device = "/dev/ping"
+		baudrate = 115200
+        } else if _, err := os.Stat("/dev/ttyAMA0"); err == nil {
+                device = "/dev/ttyAMA0"
+                baudrate = 38400
 	} else if _, err := os.Stat("/dev/softrf"); err == nil {
 		device = "/dev/softrf"
 		baudrate = int(38400)
@@ -67,6 +70,7 @@ func initPingSerial() bool {
 	// Open port
 	// No timeout specified as Ping does not heartbeat
 	pingSerialConfig = &serial.Config{Name: device, Baud: baudrate}
+	log.Printf("Opening Ping device %s with baudrate %d", device, baudrate)
 	p, err := serial.OpenPort(pingSerialConfig)
 	if err != nil {
 		log.Printf("Error opening serial port: %s\n", err.Error())
@@ -83,13 +87,13 @@ func initPingSerial() bool {
 func pingNetworkRepeater() {
 	defer pingWG.Done()
 	log.Println("Entered Ping network repeater ...")
-	cmd := exec.Command(STRATUX_HOME + "/bin/dump1090", "--net-only", "--net-stratux-port", "30006")
+	cmd := exec.Command(STRATUX_HOME+"/bin/dump1090", "--net-only", "--net-stratux-port", "30006")
 	stdout, _ := cmd.StdoutPipe()
 	stderr, _ := cmd.StderrPipe()
 
 	err := cmd.Start()
 	if err != nil {
-		log.Printf("Error executing " + STRATUX_HOME + "/bin/dump1090: %s\n", err)
+		log.Printf("Error executing "+STRATUX_HOME+"/bin/dump1090: %s\n", err)
 		// don't return immediately, use the proper shutdown procedure
 		shutdownPing = true
 		for {
@@ -169,7 +173,7 @@ func pingSerialReader() {
 		s = strings.TrimSpace(s)
 		//logString := fmt.Sprintf("Ping received: %s", s)
 		//log.Println(logString)
-		if s[0] == '*' {
+		if len(s) > 0 && s[0] == '*' {
 			// 1090ES report
 			// Ping appends a signal strength at the end of the message
 			// e.g. *8DC01C2860C37797E9732E555B23;ss=049D;
